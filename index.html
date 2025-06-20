@@ -12,16 +12,17 @@
     }
     #ui {
       position: absolute; top: 20px; left: 20px;
-      width: 240px;
-      background: rgba(255,255,255,0.9);
-      padding: 16px;
-      border-radius: 8px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      width: 260px;
+      background: rgba(255,255,255,0.95);
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
       color: #333;
+      z-index: 10;
     }
     #ui h2 {
-      margin-bottom: 8px;
-      font-size: 18px;
+      margin-bottom: 10px;
+      font-size: 20px;
       text-align: center;
     }
     #ui label {
@@ -37,25 +38,26 @@
     #ui .btn-group {
       display:flex;
       justify-content: space-between;
-      margin-top: 16px;
+      margin-top: 18px;
     }
     #ui button {
       flex:1;
       margin:0 4px;
-      padding: 8px;
+      padding: 10px;
       border:none;
-      border-radius:4px;
-      background: #4a90e2;
+      border-radius:6px;
+      background: linear-gradient(to right, #4a90e2, #357ab7);
       color: white;
       font-size:14px;
+      font-weight:bold;
       cursor:pointer;
-      transition: background .2s;
+      transition: transform .2s;
     }
     #ui button:hover {
-      background: #357ab7;
+      transform: scale(1.05);
     }
     #coord {
-      margin-top:12px;
+      margin-top:16px;
       font-size:15px;
       text-align:center;
       font-weight:bold;
@@ -65,10 +67,10 @@
 <body>
   <div id="ui">
     <h2>碰撞實驗模擬</h2>
-    <label>質量 A (g)
+    <label>球體 A 質量 (g)
       <input id="massA" type="range" min="1" max="50" value="16">
     </label>
-    <label>質量 B (g)
+    <label>球體 B 質量 (g)
       <input id="massB" type="range" min="1" max="50" value="12">
     </label>
     <label>初速度 (unit/s)
@@ -78,16 +80,19 @@
       <input id="offset" type="range" min="-5" max="5" value="0">
     </label>
     <div class="btn-group">
-      <button id="startBtn">Start 模擬</button>
-      <button id="resetBtn">Reset 重試</button>
+      <button id="startBtn">開始模擬</button>
+      <button id="resetBtn">重置</button>
     </div>
     <div id="coord">落點：—</div>
   </div>
 
-  <!-- Three.js 載入完成後執行程式 -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r136/three.min.js" onload="startApp()"></script>
-
+  <!-- Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r136/three.min.js"></script>
   <script>
+  window.addEventListener('DOMContentLoaded', () => {
+    startApp();
+  });
+
   function startApp() {
     let scene, camera, renderer, clock;
     let ballA, ballB, ramp;
