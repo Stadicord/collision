@@ -4,50 +4,98 @@
   <meta charset="UTF-8">
   <title>碰撞實驗 3D 模擬</title>
   <style>
-    body { margin: 0; overflow: hidden; background: #eee; }
-    #ui {
-      position: absolute; top: 10px; left: 10px;
-      background: rgba(255,255,255,0.8);
-      padding: 12px; border-radius: 6px;
-      font-family: sans-serif;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: "Microsoft JhengHei", sans-serif;
+      background: #f0f2f5;
+      overflow:hidden;
     }
-    #ui label { display: block; margin-top: 8px; }
-    #ui input, #ui select { width: 100%; }
-    #ui button { width: 48%; margin-top: 10px; }
-    #coord { margin-top: 6px; font-weight: bold; }
+    #ui {
+      position: absolute; top: 20px; left: 20px;
+      width: 240px;
+      background: rgba(255,255,255,0.9);
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      color: #333;
+    }
+    #ui h2 {
+      margin-bottom: 8px;
+      font-size: 18px;
+      text-align: center;
+    }
+    #ui label {
+      display:flex;
+      align-items:center;
+      margin-top:10px;
+      font-size:14px;
+    }
+    #ui input[type=range] {
+      flex:1;
+      margin-left:10px;
+    }
+    #ui .btn-group {
+      display:flex;
+      justify-content: space-between;
+      margin-top: 16px;
+    }
+    #ui button {
+      flex:1;
+      margin:0 4px;
+      padding: 8px;
+      border:none;
+      border-radius:4px;
+      background: #4a90e2;
+      color: white;
+      font-size:14px;
+      cursor:pointer;
+      transition: background .2s;
+    }
+    #ui button:hover {
+      background: #357ab7;
+    }
+    #coord {
+      margin-top:12px;
+      font-size:15px;
+      text-align:center;
+      font-weight:bold;
+    }
   </style>
 </head>
 <body>
   <div id="ui">
-    <label>球體 A 名稱：
-      <input id="nameA" value="球體A">
+    <h2>碰撞實驗模擬</h2>
+    <label>質量 A (g)
+      <input id="massA" type="range" min="1" max="50" value="16">
     </label>
-    <label>球體 B 名稱：
-      <input id="nameB" value="球體B">
+    <label>質量 B (g)
+      <input id="massB" type="range" min="1" max="50" value="12">
     </label>
-    <label>質量 A (g)：<input id="massA" type="range" min="1" max="50" value="16"></label>
-    <label>質量 B (g)：<input id="massB" type="range" min="1" max="50" value="12"></label>
-    <label>初速度 (units/s)：<input id="v0" type="range" min="2" max="20" value="8"></label>
-    <label>偏移量 (units)：<input id="offset" type="range" min="-5" max="5" value="0"></label>
-    <button id="startBtn">Start</button>
-    <button id="resetBtn">Reset</button>
-    <div id="coord">落點：- , -</div>
+    <label>初速度 (unit/s)
+      <input id="v0" type="range" min="2" max="20" value="8">
+    </label>
+    <label>偏移量 (unit)
+      <input id="offset" type="range" min="-5" max="5" value="0">
+    </label>
+    <div class="btn-group">
+      <button id="startBtn">Start 模擬</button>
+      <button id="resetBtn">Reset 重試</button>
+    </div>
+    <div id="coord">落點：—</div>
   </div>
 
+  <!-- 三維程式庫 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r136/three.min.js"></script>
+
   <script>
   let scene, camera, renderer, clock;
   let ballA, ballB, ramp;
-  let params = {};
-  let animating = false;
-  let mode = 'roll'; // 'roll' 或 'fly'
+  let params = {}, animating = false, mode = 'roll';
 
   init();
   animate();
 
   function init() {
-    /*** 基本場景 ***/
     scene = new THREE.Scene();
     clock = new THREE.Clock();
 
@@ -57,15 +105,15 @@
 
     renderer = new THREE.WebGLRenderer({antialias:true});
     renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
     document.body.appendChild(renderer.domElement);
 
-    window.addEventListener('resize', ()=>{
+    window.addEventListener('resize', () => {
       camera.aspect = innerWidth/innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(innerWidth, innerHeight);
     });
 
-    /*** 環境光 + 地面 ***/
     scene.add(new THREE.AmbientLight(0xffffff, 0.6));
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
     dirLight.position.set(10,20,10);
@@ -78,7 +126,6 @@
     ground.rotation.x = -Math.PI/2;
     scene.add(ground);
 
-    /*** 滑軌與擋板（簡化版） ***/
     const mat = new THREE.MeshStandardMaterial({color:0x8B4513});
     ramp = new THREE.Mesh(new THREE.BoxGeometry(20,1,2), mat);
     ramp.position.set(0, 1, 0);
@@ -89,36 +136,34 @@
     plate.position.set(-10, 4, 0);
     scene.add(plate);
 
-    /*** 球體 A 和 B ***/
     ballA = new THREE.Mesh(
-      new THREE.SphereGeometry(0.5, 16,16),
+      new THREE.SphereGeometry(0.5, 32, 32),
       new THREE.MeshStandardMaterial({color:0xff5555})
     );
     ballB = new THREE.Mesh(
-      new THREE.SphereGeometry(0.5, 16,16),
+      new THREE.SphereGeometry(0.5, 32, 32),
       new THREE.MeshStandardMaterial({color:0x5555ff})
     );
     scene.add(ballA);
     scene.add(ballB);
 
-    resetBoth();
-
-    /*** UI 事件 ***/
     document.getElementById('startBtn').onclick = startAnim;
-    document.getElementById('resetBtn').onclick = () => { resetBoth(); };
+    document.getElementById('resetBtn').onclick = resetBoth;
+
+    resetBoth();
   }
 
-  /** 初始化或 Reset 球體位置、參數與鏡頭 */
   function resetBoth() {
     const mA = +document.getElementById('massA').value;
     const mB = +document.getElementById('massB').value;
     const v0 = +document.getElementById('v0').value;
     const offset = +document.getElementById('offset').value;
-
     params = {mA,mB,v0,offset};
-    document.getElementById('coord').innerText = '落點：- , -';
-    document.getElementById('nameA').value && (ballA.name = document.getElementById('nameA').value);
-    document.getElementById('nameB').value && (ballB.name = document.getElementById('nameB').value);
+
+    document.getElementById('coord').innerText = '落點：—';
+
+    ballA.name = '球體A';
+    ballB.name = '球體B';
 
     ballA.position.set(-9,5,0);
     ballA.velocity = new THREE.Vector3(params.v0, 0, 0);
@@ -132,23 +177,18 @@
     animating = false;
   }
 
-  /** 開始動畫 */
   function startAnim() {
-    if (animating) return;
-    animating = true;
+    if (!animating) animating = true;
   }
 
-  /** 核心動畫迴圈 */
-  function animate(){
+  function animate() {
     requestAnimationFrame(animate);
     const dt = clock.getDelta();
     if (animating) {
       if (mode === 'roll') {
-        const A = ballA;
-        A.position.addScaledVector(A.velocity, dt);
-        if (A.position.x >= 0) {
-          /*** collision 偵測與速度計算 (2D 彈性碰撞) ***/
-          const B = ballB;
+        ballA.position.addScaledVector(ballA.velocity, dt);
+        if (ballA.position.x >= 0) {
+          const A = ballA, B = ballB;
           const dx = B.position.clone().sub(A.position);
           const dist = dx.length();
           if (dist <= 1.0) {
@@ -156,23 +196,21 @@
             const t = new THREE.Vector3(-n.y, n.x, 0);
             const vAn = n.dot(A.velocity), vAt = t.dot(A.velocity);
             const vBn = n.dot(B.velocity), vBt = t.dot(B.velocity);
-            const mA = params.mA, mB = params.mB;
-            const vAn2 = (vAn*(mA - mB) + 2*mB*vBn)/(mA+mB);
-            const vBn2 = (vBn*(mB - mA) + 2*mA*vAn)/(mA+mB);
+            const {mA,mB} = params;
+            const vAn2 = (vAn*(mA-mB)+2*mB*vBn)/(mA+mB);
+            const vBn2 = (vBn*(mB-mA)+2*mA*vAn)/(mA+mB);
             A.velocity = n.multiplyScalar(vAn2).add(t.multiplyScalar(vAt));
             B.velocity = n.multiplyScalar(vBn2).add(t.multiplyScalar(vBt));
             mode = 'fly';
           }
         }
       } else if (mode === 'fly') {
-        ballA.position.addScaledVector(ballA.velocity, dt);
-        ballB.position.addScaledVector(ballB.velocity, dt);
-        /** 座標判定落地 **/
         [ballA, ballB].forEach(ball => {
+          ball.position.addScaledVector(ball.velocity, dt);
           if (ball.position.y <= 0 && animating) {
-            document.getElementById('coord').innerText =
-              `落點：${ball.name} = (${ball.position.x.toFixed(2)} , ${ball.position.z.toFixed(2)})`;
             animating = false;
+            document.getElementById('coord').innerText =
+              `落點：${ball.name} = (${ball.position.x.toFixed(2)}, ${ball.position.z.toFixed(2)})`;
             smoothCameraZoom(ball.position);
           }
         });
@@ -181,22 +219,21 @@
     renderer.render(scene, camera);
   }
 
-  /** 鏡頭平滑拉近至落點上方，再轉為俯視 **/
-  function smoothCameraZoom(targetPos) {
-    const start = camera.position.clone();
-    const end = new THREE.Vector3(targetPos.x, targetPos.y+5, targetPos.z+0.01);
-    const startLook = new THREE.Vector3().copy(camera.getWorldDirection(new THREE.Vector3())).add(camera.position);
-    const endLook = new THREE.Vector3(targetPos.x, targetPos.y, targetPos.z);
-    let t=0, dur=2.0;
-    function moveCam(){
+  function smoothCameraZoom(target) {
+    const startPos = camera.position.clone();
+    const endPos = new THREE.Vector3(target.x, target.y + 5, target.z + 0.01);
+    const startLook = startPos.clone().add(camera.getWorldDirection(new THREE.Vector3()));
+    const endLook = new THREE.Vector3(target.x, target.y, target.z);
+    let t = 0, dur = 2.0;
+    function frame() {
       t += 0.02;
-      camera.position.lerpVectors(start, end, t/dur);
+      camera.position.lerpVectors(startPos, endPos, t/dur);
       const look = startLook.clone().lerp(endLook, t/dur);
       camera.lookAt(look);
-      if (t < dur) requestAnimationFrame(moveCam);
-      else camera.position.set(end.x, end.y, end.z), camera.lookAt(endLook);
+      if (t < dur) requestAnimationFrame(frame);
+      else { camera.position.copy(endPos); camera.lookAt(endLook); }
     }
-    moveCam();
+    frame();
   }
   </script>
 </body>
