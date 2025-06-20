@@ -20,7 +20,7 @@
     }
     #ui {
       flex-shrink: 0;
-      width: 360px;
+      width: 400px;
       background: white;
       padding: 20px;
       border-radius: 12px;
@@ -241,6 +241,30 @@
     };
     document.getElementById("resetBtn").onclick = reset;
     reset();
+    function disableSliders(disabled) {
+      document.querySelectorAll("input[type=range]").forEach(input => {
+        input.disabled = disabled;
+      });
+    }
+
+    document.getElementById("startBtn").onclick = () => {
+      if (!animating) {
+        updateValues();
+        applySettings();
+        animating = true;
+        document.getElementById("startBtn").disabled = true;
+        disableSliders(true); // 禁用滑桿
+        animate();
+      }
+    };
+
+    function reset() {
+      updateValues();
+      animating = false;
+      hasCollided = false;
+      document.getElementById("startBtn").disabled = false;
+      disableSliders(false); // 啟用滑桿
+    }
   </script>
 </body>
 </html>
