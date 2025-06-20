@@ -1,1 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>碰撞實驗 3D 模擬</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: "Microsoft JhengHei", sans-serif;
+      background: #f0f2f5;
+      overflow:hidden;
+    }
+    #ui {
+      position: absolute; top: 20px; left: 20px;
+      width: 240px;
+      background: rgba(255,255,255,0.9);
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      color: #333;
+    }
+    #ui h2 {
+      margin-bottom: 8px;
+      font-size: 18px;
+      text-align: center;
+    }
+    #ui label {
+      display:flex;
+      align-items:center;
+      margin-top:10px;
+      font-size:14px;
+    }
+    #ui input[type=range] {
+      flex:1;
+      margin-left:10px;
+    }
+    #ui .btn-group {
+      display:flex;
+      justify-content: space-between;
+      margin-top: 16px;
+    }
+    #ui button {
+      flex:1;
+      margin:0 4px;
+      padding: 8px;
+      border:none;
+      border-radius:4px;
+      background: #4a90e2;
+      color: white;
+      font-size:14px;
+      cursor:pointer;
+      transition: background .2s;
+    }
+    #ui button:hover {
+      background: #357ab7;
+    }
+    #coord {
+      margin-top:12px;
+      font-size:15px;
+      text-align:center;
+      font-weight:bold;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <h2>碰撞實驗模擬</h2>
+    <label>質量 A (g)
+      <input id="massA" type="range" min="1" max="50" value="16">
+    </label>
+    <label>質量 B (g)
+      <input id="massB" type="range" min="1" max="50" value="12">
+    </label>
+    <label>初速度 (unit/s)
+      <input id="v0" type="range" min="2" max="20" value="8">
+    </label>
+    <label>偏移量 (unit)
+      <input id="offset" type="range" min="-5" max="5" value="0">
+    </label>
+    <div class="btn-group">
+      <button id="startBtn">Start 模擬</button>
+      <button id="resetBtn">Reset 重試</button>
+    </div>
+    <div id="coord">落點：—</div>
+  </div>
 
+  <!-- Three.js 載入完成後執行程式 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r136/three.min.js" onload="startApp()"></script>
+
+  <script>
+  function startApp() {
+    let scene, camera, renderer, clock;
+    let ballA, ballB, ramp;
+    let params = {}, animating = false, mode = 'roll';
+
+    init();
+    animate();
+
+    function init() {
+      scene = new THREE.Scene();
+      clock = new THREE.Clock();
+
+      camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 2000);
+      camera.position.set(0, 10, 30);
+      camera.lookAt(0,0,0);
+
+      renderer = new THREE.WebGLRenderer({antialias:true});
+      renderer.setSize(innerWidth, innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      document.body.appendChild(renderer.domElement);
+
+      window.addEventListener('resize', () => {
+        camera.aspect = innerWidth/innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth, innerHeight);
+      });
+
+      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(10,20,10);
+      scene.add(dirLight);
+
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(200,200),
+        new THREE.MeshStandardMaterial({color:0x99cc99})
+      );
+      ground.rotation.x = -Math.PI/2;
+      scene.add(ground);
+
+      const mat = new THREE.MeshStandardMaterial({color:0x8B4513});
+      ramp = new THREE.Mesh(new THREE.BoxGeometry(20,1,2), mat);
+      ramp.position.set(0, 1, 0);
+      ramp.rotation.z = -Math.PI/8;
+      scene.add(ramp);
+
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(2,2,0.2), mat);
+      plate.position.set(-10, 4, 0);
+      scene.add(plate);
+
+      ballA = new THREE.Mesh(
+        new THREE.SphereGeometry(0.5, 32, 32),
+        new THREE.MeshStandardMaterial({color:0xff5555})
+      );
+      ballB = new THREE.Mesh(
+        new THREE.SphereGeometry(0.5, 32, 32),
+        new THREE.MeshStandardMaterial({color:0x5555ff})
+      );
+      scene.add(ballA);
+      scene.add(ballB);
+
+      document.getElementById('startBtn').onclick = startAnim;
+      document.getElementById('resetBtn').onclick = resetBoth;
+
+      resetBoth();
+    }
+
+    function resetBoth() {
+      const mA = +document.getElementById('massA').value;
+      const mB = +document.getElementById('massB').value;
+      const v0 = +document.getElementById('v0').value;
+      const offset = +document.getElementById('offset').value;
+      params = {mA,mB,v0,offset};
+
+      document.getElementById('coord').innerText = '落點：—';
+
+      ballA.name = '球體A';
+      ballB.name = '球體B';
+
+      ballA.position.set(-9,5,0);
+      ballA.velocity = new THREE.Vector3(params.v0, 0, 0);
+
+      ballB.position.set(0, 0.5+params.offset, 0);
+      ballB.velocity = new THREE.Vector3(0,0,0);
+
+      camera.position.set(0,10,30);
+      camera.lookAt(0,2,0);
+      mode = 'roll';
+      animating = false;
+    }
+
+    function startAnim() {
+      if (!animating) animating = true;
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = clock.getDelta();
+      if (animating) {
+        if (mode === 'roll') {
+          ballA.position.addScaledVector(ballA.velocity, dt);
+          if (ballA.position.x >= 0) {
+            const A = ballA, B = ballB;
+            const dx = B.position.clone().sub(A.position);
+            const dist = dx.length();
+            if (dist <= 1.0) {
+              const n = dx.clone().normalize();
+              const t = new THREE.Vector3(-n.y, n.x, 0);
+              const vAn = n.dot(A.velocity), vAt = t.dot(A.velocity);
+              const vBn = n.dot(B.velocity), vBt = t.dot(B.velocity);
+              const {mA,mB} = params;
+              const vAn2 = (vAn*(mA-mB)+2*mB*vBn)/(mA+mB);
+              const vBn2 = (vBn*(mB-mA)+2*mA*vAn)/(mA+mB);
+              A.velocity = n.multiplyScalar(vAn2).add(t.multiplyScalar(vAt));
+              B.velocity = n.multiplyScalar(vBn2).add(t.multiplyScalar(vBt));
+              mode = 'fly';
+            }
+          }
+        } else if (mode === 'fly') {
+          [ballA, ballB].forEach(ball => {
+            ball.position.addScaledVector(ball.velocity, dt);
+            if (ball.position.y <= 0 && animating) {
+              animating = false;
+              document.getElementById('coord').innerText =
+                `落點：${ball.name} = (${ball.position.x.toFixed(2)}, ${ball.position.z.toFixed(2)})`;
+              smoothCameraZoom(ball.position);
+            }
+          });
+        }
+      }
+      renderer.render(scene, camera);
+    }
+
+    function smoothCameraZoom(target) {
+      const startPos = camera.position.clone();
+      const endPos = new THREE.Vector3(target.x, target.y + 5, target.z + 0.01);
+      const startLook = startPos.clone().add(camera.getWorldDirection(new THREE.Vector3()));
+      const endLook = new THREE.Vector3(target.x, target.y, target.z);
+      let t = 0, dur = 2.0;
+      function frame() {
+        t += 0.02;
+        camera.position.lerpVectors(startPos, endPos, t/dur);
+        const look = startLook.clone().lerp(endLook, t/dur);
+        camera.lookAt(look);
+        if (t < dur) requestAnimationFrame(frame);
+        else { camera.position.copy(endPos); camera.lookAt(endLook); }
+      }
+      frame();
+    }
+  }
+  </script>
+</body>
+</html>
