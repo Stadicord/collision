@@ -18,7 +18,7 @@
     }
     #ui {
       position: fixed; top: 20px; left: 20px;
-      width: 320px;
+      width: 360px;
       background: white;
       padding: 20px;
       border-radius: 12px;
@@ -76,6 +76,8 @@
       font-size: 15px;
       text-align: center;
       font-weight: bold;
+      white-space: nowrap;
+      overflow-x: auto;
     }
     canvas {
       display: block;
@@ -156,12 +158,9 @@
     }
 
     function reset() {
-      ballA = { x: 100, y: 200, vx: 0, vy: 0, r: RADIUS, color: "red", label: "A" };
-      ballB = { x: 400, y: 200, vx: 0, vy: 0, r: RADIUS, color: "blue", label: "B" };
-      coordText.innerText = `碰撞前速度與後速度：`;
+      updateValues();
       animating = false;
       hasCollided = false;
-      draw();
       document.getElementById("startBtn").disabled = false;
     }
 
