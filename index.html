@@ -18,7 +18,7 @@
     }
     #ui {
       position: fixed; top: 20px; left: 20px;
-      width: 280px;
+      width: 320px;
       background: white;
       padding: 20px;
       border-radius: 12px;
@@ -36,6 +36,7 @@
       justify-content: space-between;
       margin-top: 10px;
       font-size: 14px;
+      white-space: nowrap;
     }
     #ui input[type=range] {
       flex: 1;
@@ -170,8 +171,11 @@
       ctx.fillStyle = ball.color;
       ctx.fill();
       ctx.closePath();
-      ctx.fillStyle = "black";
-      ctx.fillText(ball.label, ball.x - 5, ball.y + 4);
+      ctx.font = "bold 16px sans-serif";
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(ball.label, ball.x, ball.y);
     }
 
     function draw() {
