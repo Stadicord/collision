@@ -2,143 +2,202 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <title>碰撞實驗模擬</title>
+  <title>碰撞實驗 3D 模擬</title>
   <style>
-    body { font-family: sans-serif; margin: 0; padding: 20px; display: flex; }
-    #controls { width: 200px; margin-right: 20px; }
-    label { display: block; margin: 10px 0 5px; }
-    input[type=range] { width: 100%; }
-    canvas { border: 1px solid #444; background: #eef; }
+    body { margin: 0; overflow: hidden; background: #eee; }
+    #ui {
+      position: absolute; top: 10px; left: 10px;
+      background: rgba(255,255,255,0.8);
+      padding: 12px; border-radius: 6px;
+      font-family: sans-serif;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    #ui label { display: block; margin-top: 8px; }
+    #ui input, #ui select { width: 100%; }
+    #ui button { width: 48%; margin-top: 10px; }
+    #coord { margin-top: 6px; font-weight: bold; }
   </style>
 </head>
 <body>
-  <div id="controls">
-    <h2>參數設定</h2>
-    <label>大球質量 (g): <span id="m1Val">16.38</span></label>
-    <input id="m1" type="range" min="1" max="50" value="16.38" step="0.1">
-    <label>小球質量 (g): <span id="m2Val">12.00</span></label>
-    <input id="m2" type="range" min="1" max="50" value="12.00" step="0.1">
-    <label>偏移量 (px): <span id="offsetVal">0</span></label>
-    <input id="offset" type="range" min="-100" max="100" value="0" step="1">
-    <label>初始速度 (px/frame): <span id="v0Val">5</span></label>
-    <input id="v0" type="range" min="1" max="20" value="5" step="0.5">
-    <button id="startBtn">開始模擬</button>
+  <div id="ui">
+    <label>球體 A 名稱：
+      <input id="nameA" value="球體A">
+    </label>
+    <label>球體 B 名稱：
+      <input id="nameB" value="球體B">
+    </label>
+    <label>質量 A (g)：<input id="massA" type="range" min="1" max="50" value="16"></label>
+    <label>質量 B (g)：<input id="massB" type="range" min="1" max="50" value="12"></label>
+    <label>初速度 (units/s)：<input id="v0" type="range" min="2" max="20" value="8"></label>
+    <label>偏移量 (units)：<input id="offset" type="range" min="-5" max="5" value="0"></label>
+    <button id="startBtn">Start</button>
+    <button id="resetBtn">Reset</button>
+    <div id="coord">落點：- , -</div>
   </div>
-  <canvas id="canvas" width="600" height="300"></canvas>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r136/three.min.js"></script>
   <script>
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    // 讀取滑桿與顯示元素
-    const m1Slider = document.getElementById('m1');
-    const m2Slider = document.getElementById('m2');
-    const offsetSlider = document.getElementById('offset');
-    const v0Slider = document.getElementById('v0');
-    const m1Val = document.getElementById('m1Val');
-    const m2Val = document.getElementById('m2Val');
-    const offsetVal = document.getElementById('offsetVal');
-    const v0Val = document.getElementById('v0Val');
-    const startBtn = document.getElementById('startBtn');
+  let scene, camera, renderer, clock;
+  let ballA, ballB, ramp;
+  let params = {};
+  let animating = false;
+  let mode = 'roll'; // 'roll' 或 'fly'
 
-    let balls = []; // 兩球物件陣列
-    let animationId = null;
+  init();
+  animate();
 
-    // 更新滑桿顯示值
-    function updateDisplay() {
-      m1Val.textContent = m1Slider.value;
-      m2Val.textContent = m2Slider.value;
-      offsetVal.textContent = offsetSlider.value;
-      v0Val.textContent = v0Slider.value;
-    }
-    m1Slider.oninput = m2Slider.oninput = offsetSlider.oninput = v0Slider.oninput = updateDisplay;
-    updateDisplay();
+  function init() {
+    /*** 基本場景 ***/
+    scene = new THREE.Scene();
+    clock = new THREE.Clock();
 
-    // 初始化球的屬性
-    function initBalls() {
-      const m1 = parseFloat(m1Slider.value);
-      const m2 = parseFloat(m2Slider.value);
-      const offset = parseFloat(offsetSlider.value);
-      const v0 = parseFloat(v0Slider.value);
+    camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 2000);
+    camera.position.set(0, 10, 30);
+    camera.lookAt(0,0,0);
 
-      // 大球：左側，起始偏移0
-      const ball1 = {
-        x: 50, y: canvas.height/2,
-        vx: v0, vy: 0,
-        r: 15, m: m1
-      };
-      // 小球：右側，y 以 offset 調整
-      const ball2 = {
-        x: 300, y: canvas.height/2 + offset,
-        vx: 0, vy: 0,
-        r: 10, m: m2
-      };
-      balls = [ball1, ball2];
-    }
+    renderer = new THREE.WebGLRenderer({antialias:true});
+    renderer.setSize(innerWidth, innerHeight);
+    document.body.appendChild(renderer.domElement);
 
-    // 繪製球
-    function drawBalls() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      balls.forEach(ball => {
-        ctx.beginPath();
-        ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2);
-        ctx.fillStyle = '#c33';
-        ctx.fill();
-        ctx.stroke();
-      });
-    }
+    window.addEventListener('resize', ()=>{
+      camera.aspect = innerWidth/innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
 
-    // 更新位置與處理碰撞
-    function update() {
-      // 更新位置
-      balls.forEach(b => {
-        b.x += b.vx;
-        b.y += b.vy;
-      });
-      // 檢查碰撞：兩球中心距離
-      const dx = balls[1].x - balls[0].x;
-      const dy = balls[1].y - balls[0].y;
-      const dist = Math.hypot(dx, dy);
-      if (dist <= balls[0].r + balls[1].r) {
-        // 計算法線單位向量 (nx, ny)
-        const nx = dx / dist;
-        const ny = dy / dist;
-        // 切線單位向量 (tx, ty)
-        const tx = -ny, ty = nx;
-        // 速度分量投影到法線與切線
-        const v1n = balls[0].vx * nx + balls[0].vy * ny;
-        const v1t = balls[0].vx * tx + balls[0].vy * ty;
-        const v2n = balls[1].vx * nx + balls[1].vy * ny;
-        const v2t = balls[1].vx * tx + balls[1].vy * ty;
-        // 法線速度 (一維彈性碰撞公式)
-        const m1 = balls[0].m, m2 = balls[1].m;
-        const v1n_after = (v1n*(m1 - m2) + 2*m2*v2n) / (m1 + m2);
-        const v2n_after = (v2n*(m2 - m1) + 2*m1*v1n) / (m1 + m2);
-        // 合成新的速度：切線分量不變，法線分量更新
-        balls[0].vx = v1n_after * nx + v1t * tx;
-        balls[0].vy = v1n_after * ny + v1t * ty;
-        balls[1].vx = v2n_after * nx + v2t * tx;
-        balls[1].vy = v2n_after * ny + v2t * ty;
-        // 碰撞後暫停進一步計算（避免重疊）
-        cancelAnimationFrame(animationId);
+    /*** 環境光 + 地面 ***/
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(10,20,10);
+    scene.add(dirLight);
+
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(200,200),
+      new THREE.MeshStandardMaterial({color:0x99cc99})
+    );
+    ground.rotation.x = -Math.PI/2;
+    scene.add(ground);
+
+    /*** 滑軌與擋板（簡化版） ***/
+    const mat = new THREE.MeshStandardMaterial({color:0x8B4513});
+    ramp = new THREE.Mesh(new THREE.BoxGeometry(20,1,2), mat);
+    ramp.position.set(0, 1, 0);
+    ramp.rotation.z = -Math.PI/8;
+    scene.add(ramp);
+
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(2,2,0.2), mat);
+    plate.position.set(-10, 4, 0);
+    scene.add(plate);
+
+    /*** 球體 A 和 B ***/
+    ballA = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5, 16,16),
+      new THREE.MeshStandardMaterial({color:0xff5555})
+    );
+    ballB = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5, 16,16),
+      new THREE.MeshStandardMaterial({color:0x5555ff})
+    );
+    scene.add(ballA);
+    scene.add(ballB);
+
+    resetBoth();
+
+    /*** UI 事件 ***/
+    document.getElementById('startBtn').onclick = startAnim;
+    document.getElementById('resetBtn').onclick = () => { resetBoth(); };
+  }
+
+  /** 初始化或 Reset 球體位置、參數與鏡頭 */
+  function resetBoth() {
+    const mA = +document.getElementById('massA').value;
+    const mB = +document.getElementById('massB').value;
+    const v0 = +document.getElementById('v0').value;
+    const offset = +document.getElementById('offset').value;
+
+    params = {mA,mB,v0,offset};
+    document.getElementById('coord').innerText = '落點：- , -';
+    document.getElementById('nameA').value && (ballA.name = document.getElementById('nameA').value);
+    document.getElementById('nameB').value && (ballB.name = document.getElementById('nameB').value);
+
+    ballA.position.set(-9,5,0);
+    ballA.velocity = new THREE.Vector3(params.v0, 0, 0);
+
+    ballB.position.set(0, 0.5+params.offset, 0);
+    ballB.velocity = new THREE.Vector3(0,0,0);
+
+    camera.position.set(0,10,30);
+    camera.lookAt(0,2,0);
+    mode = 'roll';
+    animating = false;
+  }
+
+  /** 開始動畫 */
+  function startAnim() {
+    if (animating) return;
+    animating = true;
+  }
+
+  /** 核心動畫迴圈 */
+  function animate(){
+    requestAnimationFrame(animate);
+    const dt = clock.getDelta();
+    if (animating) {
+      if (mode === 'roll') {
+        const A = ballA;
+        A.position.addScaledVector(A.velocity, dt);
+        if (A.position.x >= 0) {
+          /*** collision 偵測與速度計算 (2D 彈性碰撞) ***/
+          const B = ballB;
+          const dx = B.position.clone().sub(A.position);
+          const dist = dx.length();
+          if (dist <= 1.0) {
+            const n = dx.clone().normalize();
+            const t = new THREE.Vector3(-n.y, n.x, 0);
+            const vAn = n.dot(A.velocity), vAt = t.dot(A.velocity);
+            const vBn = n.dot(B.velocity), vBt = t.dot(B.velocity);
+            const mA = params.mA, mB = params.mB;
+            const vAn2 = (vAn*(mA - mB) + 2*mB*vBn)/(mA+mB);
+            const vBn2 = (vBn*(mB - mA) + 2*mA*vAn)/(mA+mB);
+            A.velocity = n.multiplyScalar(vAn2).add(t.multiplyScalar(vAt));
+            B.velocity = n.multiplyScalar(vBn2).add(t.multiplyScalar(vBt));
+            mode = 'fly';
+          }
+        }
+      } else if (mode === 'fly') {
+        ballA.position.addScaledVector(ballA.velocity, dt);
+        ballB.position.addScaledVector(ballB.velocity, dt);
+        /** 座標判定落地 **/
+        [ballA, ballB].forEach(ball => {
+          if (ball.position.y <= 0 && animating) {
+            document.getElementById('coord').innerText =
+              `落點：${ball.name} = (${ball.position.x.toFixed(2)} , ${ball.position.z.toFixed(2)})`;
+            animating = false;
+            smoothCameraZoom(ball.position);
+          }
+        });
       }
-      drawBalls();
-      // 只要任一球未離開畫布繼續動畫
-      if (balls[0].x < canvas.width && balls[1].x < canvas.width) {
-        animationId = requestAnimationFrame(update);
-      }
     }
+    renderer.render(scene, camera);
+  }
 
-    // 開始按鈕事件
-    startBtn.onclick = function() {
-      cancelAnimationFrame(animationId);
-      initBalls();
-      drawBalls();
-      animationId = requestAnimationFrame(update);
-    };
-
-    // 初始繪製
-    initBalls();
-    drawBalls();
+  /** 鏡頭平滑拉近至落點上方，再轉為俯視 **/
+  function smoothCameraZoom(targetPos) {
+    const start = camera.position.clone();
+    const end = new THREE.Vector3(targetPos.x, targetPos.y+5, targetPos.z+0.01);
+    const startLook = new THREE.Vector3().copy(camera.getWorldDirection(new THREE.Vector3())).add(camera.position);
+    const endLook = new THREE.Vector3(targetPos.x, targetPos.y, targetPos.z);
+    let t=0, dur=2.0;
+    function moveCam(){
+      t += 0.02;
+      camera.position.lerpVectors(start, end, t/dur);
+      const look = startLook.clone().lerp(endLook, t/dur);
+      camera.lookAt(look);
+      if (t < dur) requestAnimationFrame(moveCam);
+      else camera.position.set(end.x, end.y, end.z), camera.lookAt(endLook);
+    }
+    moveCam();
+  }
   </script>
 </body>
 </html>
