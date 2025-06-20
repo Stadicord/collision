@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>碰撞實驗模擬</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; padding: 20px; display: flex; }
+    #controls { width: 200px; margin-right: 20px; }
+    label { display: block; margin: 10px 0 5px; }
+    input[type=range] { width: 100%; }
+    canvas { border: 1px solid #444; background: #eef; }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <h2>參數設定</h2>
+    <label>大球質量 (g): <span id="m1Val">16.38</span></label>
+    <input id="m1" type="range" min="1" max="50" value="16.38" step="0.1">
+    <label>小球質量 (g): <span id="m2Val">12.00</span></label>
+    <input id="m2" type="range" min="1" max="50" value="12.00" step="0.1">
+    <label>偏移量 (px): <span id="offsetVal">0</span></label>
+    <input id="offset" type="range" min="-100" max="100" value="0" step="1">
+    <label>初始速度 (px/frame): <span id="v0Val">5</span></label>
+    <input id="v0" type="range" min="1" max="20" value="5" step="0.5">
+    <button id="startBtn">開始模擬</button>
+  </div>
+  <canvas id="canvas" width="600" height="300"></canvas>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    // 讀取滑桿與顯示元素
+    const m1Slider = document.getElementById('m1');
+    const m2Slider = document.getElementById('m2');
+    const offsetSlider = document.getElementById('offset');
+    const v0Slider = document.getElementById('v0');
+    const m1Val = document.getElementById('m1Val');
+    const m2Val = document.getElementById('m2Val');
+    const offsetVal = document.getElementById('offsetVal');
+    const v0Val = document.getElementById('v0Val');
+    const startBtn = document.getElementById('startBtn');
+
+    let balls = []; // 兩球物件陣列
+    let animationId = null;
+
+    // 更新滑桿顯示值
+    function updateDisplay() {
+      m1Val.textContent = m1Slider.value;
+      m2Val.textContent = m2Slider.value;
+      offsetVal.textContent = offsetSlider.value;
+      v0Val.textContent = v0Slider.value;
+    }
+    m1Slider.oninput = m2Slider.oninput = offsetSlider.oninput = v0Slider.oninput = updateDisplay;
+    updateDisplay();
+
+    // 初始化球的屬性
+    function initBalls() {
+      const m1 = parseFloat(m1Slider.value);
+      const m2 = parseFloat(m2Slider.value);
+      const offset = parseFloat(offsetSlider.value);
+      const v0 = parseFloat(v0Slider.value);
+
+      // 大球：左側，起始偏移0
+      const ball1 = {
+        x: 50, y: canvas.height/2,
+        vx: v0, vy: 0,
+        r: 15, m: m1
+      };
+      // 小球：右側，y 以 offset 調整
+      const ball2 = {
+        x: 300, y: canvas.height/2 + offset,
+        vx: 0, vy: 0,
+        r: 10, m: m2
+      };
+      balls = [ball1, ball2];
+    }
+
+    // 繪製球
+    function drawBalls() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      balls.forEach(ball => {
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2);
+        ctx.fillStyle = '#c33';
+        ctx.fill();
+        ctx.stroke();
+      });
+    }
+
+    // 更新位置與處理碰撞
+    function update() {
+      // 更新位置
+      balls.forEach(b => {
+        b.x += b.vx;
+        b.y += b.vy;
+      });
+      // 檢查碰撞：兩球中心距離
+      const dx = balls[1].x - balls[0].x;
+      const dy = balls[1].y - balls[0].y;
+      const dist = Math.hypot(dx, dy);
+      if (dist <= balls[0].r + balls[1].r) {
+        // 計算法線單位向量 (nx, ny)
+        const nx = dx / dist;
+        const ny = dy / dist;
+        // 切線單位向量 (tx, ty)
+        const tx = -ny, ty = nx;
+        // 速度分量投影到法線與切線
+        const v1n = balls[0].vx * nx + balls[0].vy * ny;
+        const v1t = balls[0].vx * tx + balls[0].vy * ty;
+        const v2n = balls[1].vx * nx + balls[1].vy * ny;
+        const v2t = balls[1].vx * tx + balls[1].vy * ty;
+        // 法線速度 (一維彈性碰撞公式)
+        const m1 = balls[0].m, m2 = balls[1].m;
+        const v1n_after = (v1n*(m1 - m2) + 2*m2*v2n) / (m1 + m2);
+        const v2n_after = (v2n*(m2 - m1) + 2*m1*v1n) / (m1 + m2);
+        // 合成新的速度：切線分量不變，法線分量更新
+        balls[0].vx = v1n_after * nx + v1t * tx;
+        balls[0].vy = v1n_after * ny + v1t * ty;
+        balls[1].vx = v2n_after * nx + v2t * tx;
+        balls[1].vy = v2n_after * ny + v2t * ty;
+        // 碰撞後暫停進一步計算（避免重疊）
+        cancelAnimationFrame(animationId);
+      }
+      drawBalls();
+      // 只要任一球未離開畫布繼續動畫
+      if (balls[0].x < canvas.width && balls[1].x < canvas.width) {
+        animationId = requestAnimationFrame(update);
+      }
+    }
+
+    // 開始按鈕事件
+    startBtn.onclick = function() {
+      cancelAnimationFrame(animationId);
+      initBalls();
+      drawBalls();
+      animationId = requestAnimationFrame(update);
+    };
+
+    // 初始繪製
+    initBalls();
+    drawBalls();
+  </script>
+</body>
+</html>
