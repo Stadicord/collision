@@ -86,162 +86,168 @@
     <div id="coord">落點：—</div>
   </div>
 
-  <!-- Three.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r136/three.min.js"></script>
+  <!-- 自動載入 Three.js 並等載入後才啟動 startApp -->
   <script>
-  window.addEventListener('DOMContentLoaded', () => {
-    startApp();
-  });
+    function loadScript(url, callback) {
+      const script = document.createElement('script');
+      script.onload = callback;
+      script.src = url;
+      document.head.appendChild(script);
+    }
 
-  function startApp() {
-    let scene, camera, renderer, clock;
-    let ballA, ballB, ramp;
-    let params = {}, animating = false, mode = 'roll';
+    loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r136/three.min.js', () => {
+      startApp();
+    });
 
-    init();
-    animate();
+    function startApp() {
+      let scene, camera, renderer, clock;
+      let ballA, ballB, ramp;
+      let params = {}, animating = false, mode = 'roll';
 
-    function init() {
-      scene = new THREE.Scene();
-      clock = new THREE.Clock();
+      init();
+      animate();
 
-      camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 2000);
-      camera.position.set(0, 10, 30);
-      camera.lookAt(0,0,0);
+      function init() {
+        scene = new THREE.Scene();
+        clock = new THREE.Clock();
 
-      renderer = new THREE.WebGLRenderer({antialias:true});
-      renderer.setSize(innerWidth, innerHeight);
-      renderer.setPixelRatio(window.devicePixelRatio);
-      document.body.appendChild(renderer.domElement);
+        camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 2000);
+        camera.position.set(0, 10, 30);
+        camera.lookAt(0,0,0);
 
-      window.addEventListener('resize', () => {
-        camera.aspect = innerWidth/innerHeight;
-        camera.updateProjectionMatrix();
+        renderer = new THREE.WebGLRenderer({antialias:true});
         renderer.setSize(innerWidth, innerHeight);
-      });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
 
-      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.set(10,20,10);
-      scene.add(dirLight);
+        window.addEventListener('resize', () => {
+          camera.aspect = innerWidth/innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(innerWidth, innerHeight);
+        });
 
-      const ground = new THREE.Mesh(
-        new THREE.PlaneGeometry(200,200),
-        new THREE.MeshStandardMaterial({color:0x99cc99})
-      );
-      ground.rotation.x = -Math.PI/2;
-      scene.add(ground);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(10,20,10);
+        scene.add(dirLight);
 
-      const mat = new THREE.MeshStandardMaterial({color:0x8B4513});
-      ramp = new THREE.Mesh(new THREE.BoxGeometry(20,1,2), mat);
-      ramp.position.set(0, 1, 0);
-      ramp.rotation.z = -Math.PI/8;
-      scene.add(ramp);
+        const ground = new THREE.Mesh(
+          new THREE.PlaneGeometry(200,200),
+          new THREE.MeshStandardMaterial({color:0x99cc99})
+        );
+        ground.rotation.x = -Math.PI/2;
+        scene.add(ground);
 
-      const plate = new THREE.Mesh(new THREE.BoxGeometry(2,2,0.2), mat);
-      plate.position.set(-10, 4, 0);
-      scene.add(plate);
+        const mat = new THREE.MeshStandardMaterial({color:0x8B4513});
+        ramp = new THREE.Mesh(new THREE.BoxGeometry(20,1,2), mat);
+        ramp.position.set(0, 1, 0);
+        ramp.rotation.z = -Math.PI/8;
+        scene.add(ramp);
 
-      ballA = new THREE.Mesh(
-        new THREE.SphereGeometry(0.5, 32, 32),
-        new THREE.MeshStandardMaterial({color:0xff5555})
-      );
-      ballB = new THREE.Mesh(
-        new THREE.SphereGeometry(0.5, 32, 32),
-        new THREE.MeshStandardMaterial({color:0x5555ff})
-      );
-      scene.add(ballA);
-      scene.add(ballB);
+        const plate = new THREE.Mesh(new THREE.BoxGeometry(2,2,0.2), mat);
+        plate.position.set(-10, 4, 0);
+        scene.add(plate);
 
-      document.getElementById('startBtn').onclick = startAnim;
-      document.getElementById('resetBtn').onclick = resetBoth;
+        ballA = new THREE.Mesh(
+          new THREE.SphereGeometry(0.5, 32, 32),
+          new THREE.MeshStandardMaterial({color:0xff5555})
+        );
+        ballB = new THREE.Mesh(
+          new THREE.SphereGeometry(0.5, 32, 32),
+          new THREE.MeshStandardMaterial({color:0x5555ff})
+        );
+        scene.add(ballA);
+        scene.add(ballB);
 
-      resetBoth();
-    }
+        document.getElementById('startBtn').onclick = startAnim;
+        document.getElementById('resetBtn').onclick = resetBoth;
 
-    function resetBoth() {
-      const mA = +document.getElementById('massA').value;
-      const mB = +document.getElementById('massB').value;
-      const v0 = +document.getElementById('v0').value;
-      const offset = +document.getElementById('offset').value;
-      params = {mA,mB,v0,offset};
+        resetBoth();
+      }
 
-      document.getElementById('coord').innerText = '落點：—';
+      function resetBoth() {
+        const mA = +document.getElementById('massA').value;
+        const mB = +document.getElementById('massB').value;
+        const v0 = +document.getElementById('v0').value;
+        const offset = +document.getElementById('offset').value;
+        params = {mA,mB,v0,offset};
 
-      ballA.name = '球體A';
-      ballB.name = '球體B';
+        document.getElementById('coord').innerText = '落點：—';
 
-      ballA.position.set(-9,5,0);
-      ballA.velocity = new THREE.Vector3(params.v0, 0, 0);
+        ballA.name = '球體A';
+        ballB.name = '球體B';
 
-      ballB.position.set(0, 0.5+params.offset, 0);
-      ballB.velocity = new THREE.Vector3(0,0,0);
+        ballA.position.set(-9,5,0);
+        ballA.velocity = new THREE.Vector3(params.v0, 0, 0);
 
-      camera.position.set(0,10,30);
-      camera.lookAt(0,2,0);
-      mode = 'roll';
-      animating = false;
-    }
+        ballB.position.set(0, 0.5+params.offset, 0);
+        ballB.velocity = new THREE.Vector3(0,0,0);
 
-    function startAnim() {
-      if (!animating) animating = true;
-    }
+        camera.position.set(0,10,30);
+        camera.lookAt(0,2,0);
+        mode = 'roll';
+        animating = false;
+      }
 
-    function animate() {
-      requestAnimationFrame(animate);
-      const dt = clock.getDelta();
-      if (animating) {
-        if (mode === 'roll') {
-          ballA.position.addScaledVector(ballA.velocity, dt);
-          if (ballA.position.x >= 0) {
-            const A = ballA, B = ballB;
-            const dx = B.position.clone().sub(A.position);
-            const dist = dx.length();
-            if (dist <= 1.0) {
-              const n = dx.clone().normalize();
-              const t = new THREE.Vector3(-n.y, n.x, 0);
-              const vAn = n.dot(A.velocity), vAt = t.dot(A.velocity);
-              const vBn = n.dot(B.velocity), vBt = t.dot(B.velocity);
-              const {mA,mB} = params;
-              const vAn2 = (vAn*(mA-mB)+2*mB*vBn)/(mA+mB);
-              const vBn2 = (vBn*(mB-mA)+2*mA*vAn)/(mA+mB);
-              A.velocity = n.multiplyScalar(vAn2).add(t.multiplyScalar(vAt));
-              B.velocity = n.multiplyScalar(vBn2).add(t.multiplyScalar(vBt));
-              mode = 'fly';
+      function startAnim() {
+        if (!animating) animating = true;
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        const dt = clock.getDelta();
+        if (animating) {
+          if (mode === 'roll') {
+            ballA.position.addScaledVector(ballA.velocity, dt);
+            if (ballA.position.x >= 0) {
+              const A = ballA, B = ballB;
+              const dx = B.position.clone().sub(A.position);
+              const dist = dx.length();
+              if (dist <= 1.0) {
+                const n = dx.clone().normalize();
+                const t = new THREE.Vector3(-n.y, n.x, 0);
+                const vAn = n.dot(A.velocity), vAt = t.dot(A.velocity);
+                const vBn = n.dot(B.velocity), vBt = t.dot(B.velocity);
+                const {mA,mB} = params;
+                const vAn2 = (vAn*(mA-mB)+2*mB*vBn)/(mA+mB);
+                const vBn2 = (vBn*(mB-mA)+2*mA*vAn)/(mA+mB);
+                A.velocity = n.multiplyScalar(vAn2).add(t.multiplyScalar(vAt));
+                B.velocity = n.multiplyScalar(vBn2).add(t.multiplyScalar(vBt));
+                mode = 'fly';
+              }
             }
+          } else if (mode === 'fly') {
+            [ballA, ballB].forEach(ball => {
+              ball.position.addScaledVector(ball.velocity, dt);
+              if (ball.position.y <= 0 && animating) {
+                animating = false;
+                document.getElementById('coord').innerText =
+                  `落點：${ball.name} = (${ball.position.x.toFixed(2)}, ${ball.position.z.toFixed(2)})`;
+                smoothCameraZoom(ball.position);
+              }
+            });
           }
-        } else if (mode === 'fly') {
-          [ballA, ballB].forEach(ball => {
-            ball.position.addScaledVector(ball.velocity, dt);
-            if (ball.position.y <= 0 && animating) {
-              animating = false;
-              document.getElementById('coord').innerText =
-                `落點：${ball.name} = (${ball.position.x.toFixed(2)}, ${ball.position.z.toFixed(2)})`;
-              smoothCameraZoom(ball.position);
-            }
-          });
         }
+        renderer.render(scene, camera);
       }
-      renderer.render(scene, camera);
-    }
 
-    function smoothCameraZoom(target) {
-      const startPos = camera.position.clone();
-      const endPos = new THREE.Vector3(target.x, target.y + 5, target.z + 0.01);
-      const startLook = startPos.clone().add(camera.getWorldDirection(new THREE.Vector3()));
-      const endLook = new THREE.Vector3(target.x, target.y, target.z);
-      let t = 0, dur = 2.0;
-      function frame() {
-        t += 0.02;
-        camera.position.lerpVectors(startPos, endPos, t/dur);
-        const look = startLook.clone().lerp(endLook, t/dur);
-        camera.lookAt(look);
-        if (t < dur) requestAnimationFrame(frame);
-        else { camera.position.copy(endPos); camera.lookAt(endLook); }
+      function smoothCameraZoom(target) {
+        const startPos = camera.position.clone();
+        const endPos = new THREE.Vector3(target.x, target.y + 5, target.z + 0.01);
+        const startLook = startPos.clone().add(camera.getWorldDirection(new THREE.Vector3()));
+        const endLook = new THREE.Vector3(target.x, target.y, target.z);
+        let t = 0, dur = 2.0;
+        function frame() {
+          t += 0.02;
+          camera.position.lerpVectors(startPos, endPos, t/dur);
+          const look = startLook.clone().lerp(endLook, t/dur);
+          camera.lookAt(look);
+          if (t < dur) requestAnimationFrame(frame);
+          else { camera.position.copy(endPos); camera.lookAt(endLook); }
+        }
+        frame();
       }
-      frame();
     }
-  }
   </script>
 </body>
 </html>
